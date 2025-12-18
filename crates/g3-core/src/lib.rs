@@ -1198,7 +1198,7 @@ impl<W: UiWriter> Agent<W> {
             }
         }
 
-        // Register OpenAI-compatible providers (e.g., OpenRouter, Groq, etc.)
+        // Register OpenAI-compatible providers (e.g., Groq, etc.)
         for (name, openai_config) in &config.providers.openai_compatible {
             if should_register(name, "default") {
                 let openai_provider = g3_providers::OpenAIProvider::new_with_name(
@@ -1210,6 +1210,40 @@ impl<W: UiWriter> Agent<W> {
                     openai_config.temperature,
                 )?;
                 providers.register(openai_provider);
+            }
+        }
+
+        // Register OpenRouter providers from HashMap
+        for (name, openrouter_config) in &config.providers.openrouter {
+            if should_register("openrouter", name) {
+                let mut openrouter_provider = g3_providers::OpenRouterProvider::new_with_name(
+                    format!("openrouter.{}", name),
+                    openrouter_config.api_key.clone(),
+                    Some(openrouter_config.model.clone()),
+                    openrouter_config.max_tokens,
+                    openrouter_config.temperature,
+                )?;
+
+                // Add provider preferences if configured
+                if openrouter_config.provider_order.is_some() || openrouter_config.allow_fallbacks.is_some() {
+                    openrouter_provider = openrouter_provider.with_provider_preferences(
+                        g3_providers::ProviderPreferences {
+                            order: openrouter_config.provider_order.clone(),
+                            allow_fallbacks: openrouter_config.allow_fallbacks,
+                            require_parameters: None,
+                        }
+                    );
+                }
+
+                // Add HTTP headers if configured
+                if let Some(ref referer) = openrouter_config.http_referer {
+                    openrouter_provider = openrouter_provider.with_http_referer(referer.clone());
+                }
+                if let Some(ref title) = openrouter_config.x_title {
+                    openrouter_provider = openrouter_provider.with_x_title(title.clone());
+                }
+
+                providers.register(openrouter_provider);
             }
         }
 
@@ -1440,6 +1474,7 @@ impl<W: UiWriter> Agent<W> {
             "openai" => config.providers.openai.get(config_name)?.max_tokens,
             "databricks" => config.providers.databricks.get(config_name)?.max_tokens,
             "embedded" => config.providers.embedded.get(config_name)?.max_tokens,
+            "openrouter" => config.providers.openrouter.get(config_name)?.max_tokens,
             _ => None,
         }
     }
@@ -1460,6 +1495,7 @@ impl<W: UiWriter> Agent<W> {
             "openai" => config.providers.openai.get(config_name)?.temperature,
             "databricks" => config.providers.databricks.get(config_name)?.temperature,
             "embedded" => config.providers.embedded.get(config_name)?.temperature,
+            "openrouter" => config.providers.openrouter.get(config_name)?.temperature,
             _ => None,
         }
     }
